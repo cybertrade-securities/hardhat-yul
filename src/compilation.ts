@@ -62,14 +62,14 @@ export async function compileYulp(
 
 async function getYulSources(paths: ProjectPathsConfig) {
   const glob = await import("glob");
-  const yulFiles = glob.sync(path.join(paths.sources, "**", "*.yul"));
+  const yulFiles = glob.sync(path.join(paths.sources, "**", "*.yul").replace(/\\/g, '/'));
 
   return yulFiles;
 }
 
 async function getYulpSources(paths: ProjectPathsConfig) {
   const glob = await import("glob");
-  const yulpFiles = glob.sync(path.join(paths.sources, "**", "*.yulp"));
+  const yulpFiles = glob.sync(path.join(paths.sources, "**", "*.yulp").replace(/\\/g, '/'));
 
   return yulpFiles;
 }
