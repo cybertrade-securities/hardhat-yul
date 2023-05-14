@@ -24,7 +24,8 @@
     "prettier": "prettier \"**/*.{js,md,json}\"",
     "test": "mocha --recursive \"test/**/*.ts\" --exit",
     "build": "tsc --build .",
-    "clean": "rimraf dist"
+    "clean": "rimraf dist",
+    "postinstall": "tsc --build ."
   },
   "files": [
     "dist/*",
@@ -33,11 +34,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@nomiclabs/hardhat-docker": "^2.0.0",
-    "fs-extra": "^10.1.0",
     "glob": "^8.0.3",
-    "solc": "^0.8.17",
-    "solpp": "^0.11.5",
     "yulp": "^0.2.3"
   },
   "devDependencies": {

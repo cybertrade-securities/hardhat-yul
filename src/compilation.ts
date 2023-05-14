@@ -1,17 +1,41 @@
-import { Artifact, Artifacts, ProjectPathsConfig } from "hardhat/types";
-import type { Artifacts as ArtifactsImpl } from "hardhat/internal/artifacts";
-import { localPathToSourceName } from "hardhat/utils/source-names";
+import {Artifact, Artifacts, ProjectPathsConfig, RunTaskFunction, SolcBuild, CompilerInput, CompilerOutput} from "hardhat/types";
+import type {Artifacts as ArtifactsImpl} from "hardhat/internal/artifacts";
+import {localPathToSourceName} from "hardhat/utils/source-names";
+import {TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD} from "hardhat/builtin-tasks/task-names";
+import {Compiler, NativeCompiler} from "hardhat/internal/solidity/compiler";
+
 import path from "path";
-import solc from "solc";
 import yulp from "yulp";
 import * as fs from "fs";
-import { YulConfig } from "./types";
-import util from "util";
+import {YulConfig} from "./types";
+
+export interface ICompiler {
+  compile(input: CompilerInput): Promise<CompilerOutput>;
+}
+
+async function getCompiler(_yulConfig: YulConfig, run: RunTaskFunction): Promise<ICompiler> {
+  const solcBuild: SolcBuild = await run(
+    TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD,
+    {
+      quiet: true,
+      solcVersion: _yulConfig.version,
+    }
+  );
+
+  let compiler: ICompiler;
+  if (solcBuild.isSolcJs) {
+    compiler = new Compiler(solcBuild.compilerPath);
+  } else {
+    compiler = new NativeCompiler(solcBuild.compilerPath);
+  }
+  return compiler;
+}
 
 export async function compileYul(
   _yulConfig: YulConfig,
   paths: ProjectPathsConfig,
-  artifacts: Artifacts
+  artifacts: Artifacts,
+  run: RunTaskFunction
 ) {
   const files = await getYulSources(paths);
 
@@ -21,7 +45,8 @@ export async function compileYul(
 
     console.log(`Compiling ${cwdPath}...`);
 
-    const yulOutput = await _compileYul(cwdPath, file);
+    const compiler = await getCompiler(_yulConfig, run);
+    const yulOutput = await _compileYul(cwdPath, file, _yulConfig, compiler);
 
     const sourceName = await localPathToSourceName(paths.root, file);
     const artifact = getArtifactFromYulOutput(sourceName, yulOutput);
@@ -37,7 +62,8 @@ export async function compileYul(
 export async function compileYulp(
   _yulConfig: YulConfig,
   paths: ProjectPathsConfig,
-  artifacts: Artifacts
+  artifacts: Artifacts,
+  run: RunTaskFunction
 ) {
   const files = await getYulpSources(paths);
 
@@ -47,7 +73,8 @@ export async function compileYulp(
 
     console.log(`Compiling ${cwdPath}...`);
 
-    const yulOutput = await _compileYulp(cwdPath, file);
+    const compiler = await getCompiler(_yulConfig, run);
+    const yulOutput = await _compileYulp(cwdPath, file, _yulConfig, compiler);
 
     const sourceName = await localPathToSourceName(paths.root, file);
     const artifact = getArtifactFromYulOutput(sourceName, yulOutput);
@@ -88,17 +115,30 @@ function getArtifactFromYulOutput(sourceName: string, output: any): Artifact {
     sourceName,
     abi: [], // FIXME: create a proper abi which will work with typechain etc...
     bytecode: output.bytecode,
-    deployedBytecode: output.bytecode_runtime,
+    deployedBytecode: output.deployedBytecode,
     linkReferences: {},
     deployedLinkReferences: {},
   };
 }
 
-async function _compileYul(filepath: string, filename: string) {
+function checkCompilationErrors(filename: string, errors: any) {
+  for (const error of errors) {
+    if (error.severity !== 'warning') {
+      console.error('\x1b[31m%s\x1b[0m',
+        `hardhat-yul: error compiling ${filename}:\n${error.formattedMessage}`
+      );
+    } else {
+      console.warn('\x1b[33m%s\x1b[0m',
+        `hardhat-yul: warning compiling ${filename}:\n${error.formattedMessage}`)
+    }
+  }
+}
+
+async function _compileYul(filepath: string, filename: string, _yulConfig: YulConfig, compiler: ICompiler) {
   const data = fs.readFileSync(filepath, "utf8");
-  const output = JSON.parse(
-    solc.compile(
-      JSON.stringify({
+
+  const output =
+    await compiler.compile({
         language: "Yul",
         sources: { "Target.yul": { content: data } },
         settings: {
@@ -108,44 +148,42 @@ async function _compileYul(filepath: string, filename: string) {
             runs: 0,
             details: {
               yul: true,
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore
+              yulDetails: _yulConfig.yulDetails
             },
           },
         },
-      })
-    )
+      }
   );
-  if (output.errors && output.errors.length > 0) {
-    throw new Error(
-      `hardhat-yul: error compiling ${filename}: ${util.inspect(
-        output,
-        false,
-        null,
-        true
-      )}`
-    );
-  }
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  checkCompilationErrors(filename, output.errors);
+
   const contractObjects = Object.keys(output.contracts["Target.yul"]);
   const bytecode =
     "0x" +
     output.contracts["Target.yul"][contractObjects[0]]["evm"]["bytecode"][
       "object"
     ];
-  const contractCompiled = {
+  let deployedBytecode = "0x";
+  if (output.contracts["Target.yul"][contractObjects[0]]["evm"]["deployedBytecode"]) {
+    deployedBytecode += output.contracts["Target.yul"][contractObjects[0]]["evm"]["deployedBytecode"]["object"];
+  }
+  return {
     _format: "hh-sol-artifact-1",
     sourceName: filename,
     abi: [], // needs to be an empty array to not cause issues with typechain
     bytecode: bytecode,
+    deployedBytecode
   };
-
-  return contractCompiled;
 }
 
-async function _compileYulp(filepath: string, filename: string) {
+async function _compileYulp(filepath: string, filename: string, _yulConfig: YulConfig, compiler: ICompiler) {
   const data = fs.readFileSync(filepath, "utf8");
   const source = yulp.compile(data);
-  const output = JSON.parse(
-    solc.compile(
-      JSON.stringify({
+  const output =
+    await compiler.compile({
         language: "Yul",
         sources: { "Target.yul": { content: yulp.print(source.results) } },
         settings: {
@@ -155,28 +193,28 @@ async function _compileYulp(filepath: string, filename: string) {
             runs: 0,
             details: {
               yul: true,
+              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+              // @ts-ignore
+              yulDetails: _yulConfig.yulDetails
             },
           },
         },
-      })
-    )
+      }
   );
-  if (output.errors && output.errors.length > 0) {
-    throw new Error(
-      `hardhat-yul: error compiling ${filename}: ${util.inspect(
-        output,
-        false,
-        null,
-        true
-      )}`
-    );
-  }
+  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+  // @ts-ignore
+  checkCompilationErrors(filename, output.errors);
+
   const contractObjects = Object.keys(output.contracts["Target.yul"]);
   const bytecode =
     "0x" +
     output.contracts["Target.yul"][contractObjects[0]]["evm"]["bytecode"][
       "object"
     ];
+  let deployedBytecode = "0x";
+  if (output.contracts["Target.yul"][contractObjects[0]]["evm"]["deployedBytecode"]) {
+    deployedBytecode += output.contracts["Target.yul"][contractObjects[0]]["evm"]["deployedBytecode"]["object"];
+  }
   const abi = source.signatures
     .map((v: any) => v.abi.slice(4, -1))
     .concat(source.topics.map((v: any) => v.abi.slice(6, -1)));
@@ -185,6 +223,7 @@ async function _compileYulp(filepath: string, filename: string) {
     sourceName: filename,
     abi: abi,
     bytecode: bytecode,
+    deployedBytecode
   };
 
   return contractCompiled;
