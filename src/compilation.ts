@@ -118,6 +118,9 @@ function getArtifactFromYulOutput(sourceName: string, output: any): Artifact {
     deployedBytecode: output.deployedBytecode,
     linkReferences: {},
     deployedLinkReferences: {},
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    functionDebugData: output.functionDebugData,
   };
 }
 
@@ -170,12 +173,16 @@ async function _compileYul(filepath: string, filename: string, _yulConfig: YulCo
   if (output.contracts["Target.yul"][contractObjects[0]]["evm"]["deployedBytecode"]) {
     deployedBytecode += output.contracts["Target.yul"][contractObjects[0]]["evm"]["deployedBytecode"]["object"];
   }
+
   return {
     _format: "hh-sol-artifact-1",
     sourceName: filename,
     abi: [], // needs to be an empty array to not cause issues with typechain
     bytecode: bytecode,
-    deployedBytecode
+    deployedBytecode,
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    functionDebugData: output.contracts["Target.yul"][contractObjects[0]].evm?.deployedBytecode?.functionDebugData
   };
 }
 
