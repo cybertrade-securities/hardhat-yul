@@ -2,15 +2,13 @@
 
 [![npm](https://img.shields.io/npm/v/@tovarishfin/hardhat-yul.svg)](https://www.npmjs.com/package/@tovarishfin/hardhat-yul) [![hardhat](https://hardhat.org/buidler-plugin-badge.svg?1)](https://hardhat.org)
 
-[Hardhat](https://hardhat.org) plugin to develop smart contracts with Yul and/or Yul+.
+[Hardhat](https://hardhat.org) plugin to develop smart contracts with Yul.
 
 ## What
 
-This plugin adds support for Yul and Yul+ to Hardhat. Once installed, Yul contracts can be compiled by running the `compile` task.
+This plugin adds support for Yul to Hardhat. Once installed, Yul contracts can be compiled by running the `compile` task.
 
 The Yul compiler is run using the [official solc compiler](https://github.com/ethereum/solc-js#readme).
-
-The Yul+ compiler is run using the [Yul+ transpiler from FuelLabs](https://github.com/FuelLabs/yulp) before being passed to the Yul compiler.
 
 ## Installation
 

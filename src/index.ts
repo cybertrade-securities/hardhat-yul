@@ -1,7 +1,7 @@
 import { TASK_COMPILE_GET_COMPILATION_TASKS } from "hardhat/builtin-tasks/task-names";
 import { extendConfig, subtask } from "hardhat/config";
 
-import { TASK_COMPILE_YUL, TASK_COMPILE_YULP } from "./task-names";
+import { TASK_COMPILE_YUL } from "./task-names";
 import "./type-extensions";
 
 extendConfig((config) => {
@@ -9,12 +9,12 @@ extendConfig((config) => {
   config.yul = { ...defaultConfig, ...config.yul };
 });
 
-// add new tasks: compile:yul, compile:yulp
+// add new task: compile:yul
 subtask(
   TASK_COMPILE_GET_COMPILATION_TASKS,
   async (_, __, runSuper): Promise<string[]> => {
     const otherTasks = await runSuper();
-    return [...otherTasks, TASK_COMPILE_YUL, TASK_COMPILE_YULP];
+    return [...otherTasks, TASK_COMPILE_YUL];
   }
 );
 
@@ -22,10 +22,4 @@ subtask(
 subtask(TASK_COMPILE_YUL, async (_flags, { config, artifacts, run }) => {
   const { compileYul } = await import("./compilation");
   await compileYul(config.yul, config.paths, artifacts, run);
-});
-
-// handle the newly added compile:yulp tasks
-subtask(TASK_COMPILE_YULP, async (_flags, { config, artifacts, run }) => {
-  const { compileYulp } = await import("./compilation");
-  await compileYulp(config.yul, config.paths, artifacts, run);
 });
