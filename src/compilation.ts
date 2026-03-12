@@ -13,6 +13,34 @@ export interface ICompiler {
   compile(input: CompilerInput): Promise<CompilerOutput>;
 }
 
+export function normalizeYulConfig(yulConfig?: YulConfig): YulConfig | undefined {
+  if (yulConfig === undefined) {
+    return undefined;
+  }
+
+  const details = {
+    ...(yulConfig.details ?? {}),
+    yul: true,
+    yulDetails: {
+      ...((yulConfig.details?.yulDetails as Record<string, unknown> | undefined) ?? {}),
+      ...(yulConfig.yulDetails ?? {}),
+    },
+  };
+
+  return {
+    ...yulConfig,
+    details,
+    yulDetails: details.yulDetails as YulConfig["yulDetails"],
+  };
+}
+
+function buildOptimizerDetails(yulConfig: YulConfig) {
+  return normalizeYulConfig(yulConfig)?.details ?? {
+    yul: true,
+    yulDetails: yulConfig.yulDetails,
+  };
+}
+
 async function getCompiler(_yulConfig: YulConfig, run: RunTaskFunction): Promise<ICompiler> {
   const solcBuild: SolcBuild = await run(
     TASK_COMPILE_SOLIDITY_GET_SOLC_BUILD,
@@ -139,6 +167,7 @@ function checkCompilationErrors(filename: string, errors: any) {
 
 async function _compileYul(filepath: string, filename: string, _yulConfig: YulConfig, compiler: ICompiler) {
   const data = fs.readFileSync(filepath, "utf8");
+  const optimizerDetails = buildOptimizerDetails(_yulConfig);
 
   const output =
     await compiler.compile({
@@ -149,12 +178,7 @@ async function _compileYul(filepath: string, filename: string, _yulConfig: YulCo
           optimizer: {
             enabled: true,
             runs: 0,
-            details: {
-              yul: true,
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-ignore
-              yulDetails: _yulConfig.yulDetails
-            },
+            details: optimizerDetails as any,
           },
         },
       }
@@ -189,6 +213,7 @@ async function _compileYul(filepath: string, filename: string, _yulConfig: YulCo
 async function _compileYulp(filepath: string, filename: string, _yulConfig: YulConfig, compiler: ICompiler) {
   const data = fs.readFileSync(filepath, "utf8");
   const source = yulp.compile(data);
+  const optimizerDetails = buildOptimizerDetails(_yulConfig);
   const output =
     await compiler.compile({
         language: "Yul",
@@ -198,12 +223,7 @@ async function _compileYulp(filepath: string, filename: string, _yulConfig: YulC
           optimizer: {
             enabled: true,
             runs: 0,
-            details: {
-              yul: true,
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-ignore
-              yulDetails: _yulConfig.yulDetails
-            },
+            details: optimizerDetails as any,
           },
         },
       }
