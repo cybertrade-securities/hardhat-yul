@@ -22,21 +22,19 @@ export function normalizeYulConfig(yulConfig?: YulConfig): YulConfig | undefined
     yul: true,
     yulDetails: {
       ...((yulConfig.details?.yulDetails as Record<string, unknown> | undefined) ?? {}),
-      ...(yulConfig.yulDetails ?? {}),
     },
   };
 
   return {
     ...yulConfig,
     details,
-    yulDetails: details.yulDetails as YulConfig["yulDetails"],
   };
 }
 
 function buildOptimizerDetails(yulConfig: YulConfig) {
   return normalizeYulConfig(yulConfig)?.details ?? {
     yul: true,
-    yulDetails: yulConfig.yulDetails,
+    yulDetails: yulConfig.details?.yulDetails,
   };
 }
 

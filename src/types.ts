@@ -5,7 +5,4 @@ export interface YulConfig {
       optimizerSteps?: string;
     };
   };
-  yulDetails?: {
-    optimizerSteps?: string;
-  };
 }
